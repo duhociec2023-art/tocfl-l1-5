@@ -116,6 +116,7 @@ const LESSONS={1:"歡迎你來台灣",2:"我的家人",3:"週末做什麼",4:"�
 const LEVELS={1:"Mức 1 · Nhận diện từ",2:"Mức 2 · Hiểu câu",3:"Mức 3 · Hiểu hội thoại/đoạn văn"};
 const LEN={L:20,R:20};          // số câu mỗi phần
 const MINUTES=50;               // thời gian làm bài
+const SHEET_URL="https://script.google.com/macros/s/AKfycbxmcByzC3YDA4yOLLgNMMSeN9MTEbbsFRmNVvcHpLXjlY5B1zmnjf3HseeWOCi6UOkwHA/exec";            // link /exec của Google Apps Script (để trống = không gửi)
 const ZN=["","一","兩","三","四","五"];
 
 /* ---------- pictograms (vẽ tay bằng SVG, không dùng ảnh có bản quyền) ---------- */
@@ -404,14 +405,26 @@ function results(){if(timer){clearInterval(timer);timer=null}
   app.innerHTML=`<div style="display:flex;flex-direction:column;gap:16px">
    <section class="card"><span class="label">Kết quả${S.timeUp?" · Hết giờ":""}</span>
     <h1>${S.name?esc(S.name):"Học viên"}</h1>
-    <p class="muted">${new Date().toLocaleString("vi-VN")} · Thời gian làm: ${Math.min(used,MINUTES)} phút · Chụp màn hình này gửi giáo viên.</p></section>
+    <p class="muted">${new Date().toLocaleString("vi-VN")} · Thời gian làm: ${Math.min(used,MINUTES)} phút</p><p id="sendst" class="muted">${SHEET_URL?"Đang gửi kết quả cho giáo viên…":"Chụp màn hình này gửi giáo viên."}</p></section>
    <div class="stats">${sec("L")}${sec("R")}</div>
    <section class="card"><h2>Theo từng bài</h2>
     <div class="tbl"><table><thead><tr><th>Bài</th><th>Chủ đề</th><th>Đúng</th><th>Tỉ lệ</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="muted" style="font-size:13px">Số câu mỗi bài khác nhau vì đề tự chọn câu theo trình độ.</p>
     <details><summary>Xem lại từng câu</summary><div class="rev">${rev}</div></details></section>
    <div class="row"><button class="ghost" id="again">Làm lại từ đầu</button></div></div>`;
-  document.getElementById("again").onclick=()=>{reset();intro()}}
+  document.getElementById("again").onclick=()=>{reset();intro()};
+  sendResult(all,Math.min(used,MINUTES))}
+
+function sendResult(all,minutes){if(!SHEET_URL||S.sent)return;S.sent=true;
+  const sc=k=>`${S.secs[k].hist.filter(h=>h.ok).length}/${LEN[k]}`,lv=k=>S.secs[k].hist.length?LEVELS[S.secs[k].level]:"Chưa làm";
+  const les=l=>{const h=all.filter(x=>x.item.les===l);return `${h.filter(x=>x.ok).length}/${h.length}`};
+  const wrong=all.filter(h=>!h.ok).map(h=>`${h.item.s==="L"?"Nghe":"Đọc"} L${h.item.les}: ${h.item.q} → chọn ${optText(h.item,h.chosen)} (đúng: ${optText(h.item,h.item.k)})`).join("\n");
+  const d={name:S.name||"(không tên)",lScore:sc("L"),lLevel:lv("L"),rScore:sc("R"),rLevel:lv("R"),
+    l1:les(1),l2:les(2),l3:les(3),l4:les(4),l5:les(5),minutes,timeUp:S.timeUp,wrong};
+  const st=document.getElementById("sendst");
+  fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(d)})
+    .then(()=>{if(st)st.textContent="✓ Đã gửi kết quả cho giáo viên."})
+    .catch(()=>{S.sent=false;if(st)st.textContent="Chưa gửi được kết quả (mất mạng?). Hãy chụp màn hình này gửi giáo viên."})}
 
 reset();intro();
 </script>
