@@ -1,6 +1,6 @@
-# Tạo giọng đọc Đài Loan (nữ: HsiaoChen, nam: YunJhe, người dẫn: HsiaoYu) cho bài Mini-CAT.
-# Nhịp đọc và quãng nghỉ theo mẫu đề TOCFL (khoảng 4–5 chữ/giây, nghỉ ~1 giây giữa lượt lời).
-# Chạy tự động khi file này được lưu, hoặc bấm "Run workflow" trong tab Actions.
+# Tạo giọng đọc Đài Loan bằng Azure Speech (chính thức): nữ HsiaoChen, nam YunJhe, người dẫn HsiaoYu.
+# Cần 2 "secret" trong Settings > Secrets and variables > Actions: AZURE_SPEECH_KEY và AZURE_SPEECH_REGION.
+# Nhịp đọc theo mẫu đề TOCFL (khoảng 4–5 chữ/giây, nghỉ ~1 giây giữa lượt lời).
 name: Tao giong doc Dai Loan
 on:
   push:
@@ -13,59 +13,61 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
       - name: Cai cong cu
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-          pip install -q edge-tts==7.2.8
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Tao file am thanh
+        env:
+          KEY: ${{ secrets.AZURE_SPEECH_KEY }}
+          REGION: ${{ secrets.AZURE_SPEECH_REGION }}
         run: |
           cat > gen.py <<'PY'
-          import asyncio, json, os, subprocess, edge_tts
+          import json, os, subprocess, time, urllib.request, urllib.error
+          from xml.sax.saxutils import escape
           LINES=json.loads(r'''[{"f":"1ce6acd125","a":[["","我是日本人。"]],"m":true,"q":"他是哪國人？"},{"f":"d3e8e57090","a":[["","我要喝咖啡。"]],"m":true,"q":"他要喝什麼？"},{"f":"2118d34b06","a":[["","我有兩個哥哥。"]],"m":true,"q":"他有幾個哥哥？"},{"f":"d82353e606","a":[["","這是我媽媽。"]],"m":false,"q":"這是誰？"},{"f":"2e97a890f0","a":[["","我週末常打籃球。"]],"m":true,"q":"他週末常做什麼？"},{"f":"24aa05b0ee","a":[["","我喜歡看電影。"]],"m":true,"q":"他喜歡做什麼？"},{"f":"d2be34df19","a":[["","這支手機八千塊。"]],"m":false,"q":"手機多少錢？"},{"f":"e4b0be18d5","a":[["","我要一杯熱咖啡。"]],"m":true,"q":"他要什麼？"},{"f":"6eee1562e7","a":[["","牛肉麵很好吃。"]],"m":false,"q":"什麼很好吃？"},{"f":"94d93a75c1","a":[["","我很喜歡吃臺灣的牛肉麵。"]],"m":true,"q":"他喜歡吃什麼？"},{"f":"65c7896d35","a":[["","我喜歡喝茶。"]],"m":false,"q":""},{"f":"8fc31fa674","a":[["","老闆，我要一個包子。"]],"m":false,"q":""},{"f":"96af80f527","a":[["","我週末常去游泳。"]],"m":false,"q":""},{"f":"f50350f455","a":[["","我哥哥喜歡打網球。"]],"m":false,"q":""},{"f":"b5509908da","a":[["","明天我們一起去看電影。"]],"m":false,"q":""},{"f":"f8be07dbe9","a":[["","我姐姐喜歡聽音樂。"]],"m":false,"q":""},{"f":"f6ba3a2422","a":[["","我想買一支新手機。"]],"m":false,"q":""},{"f":"6ce606eb69","a":[["","老闆，我要一碗牛肉麵。"]],"m":false,"q":""},{"f":"6fbc5198d5","a":[["","你叫什麼名字？"]],"m":false,"q":""},{"f":"6b17414bc8","a":[["","你是哪國人？"]],"m":false,"q":""},{"f":"0db099ac3c","a":[["","你喝不喝咖啡？"]],"m":false,"q":""},{"f":"8bd879d18a","a":[["","你家有幾個人？"]],"m":false,"q":""},{"f":"7586c5c7b9","a":[["","這個人是誰？"]],"m":false,"q":""},{"f":"75400a7a5e","a":[["","你有哥哥嗎？"]],"m":false,"q":""},{"f":"b6d1ae6cdb","a":[["","你週末想做什麼？"]],"m":false,"q":""},{"f":"c23373280a","a":[["","明天晚上我們一起去打網球，好不好？"]],"m":false,"q":""},{"f":"92c857402b","a":[["","你喜歡什麼運動？"]],"m":false,"q":""},{"f":"0c15e151a4","a":[["","請問這杯咖啡多少錢？"]],"m":false,"q":""},{"f":"bc1d7e47ee","a":[["","你要大杯的還是小杯的？"]],"m":false,"q":""},{"f":"e89e22952e","a":[["","你要買幾杯？"]],"m":false,"q":""},{"f":"10d356993f","a":[["","這家店的牛肉麵怎麼樣？"]],"m":false,"q":""},{"f":"07afd5f4e6","a":[["","你想吃什麼？"]],"m":false,"q":""},{"f":"e5a9dcbaa6","a":[["","這碗牛肉麵辣不辣？"]],"m":false,"q":""},{"f":"be0978a230","a":[["","我家有五個人：爸爸、媽媽、哥哥、妹妹和我。"]],"m":false,"q":""},{"f":"ac2a1771cf","a":[["","一杯咖啡五十塊。"]],"m":false,"q":""},{"f":"27ed324bfb","a":[["","老闆，我們要兩碗牛肉麵。"]],"m":false,"q":""},{"f":"c45587f766","a":[["開文","你好，我姓王，叫王開文。你呢？"],["月美","我叫陳月美。王先生，你是哪國人？"],["開文","我是美國人。"]],"m":false,"q":"王先生是哪國人？"},{"f":"a2e134f38d","a":[["明華","開文，你要喝茶還是喝咖啡？"],["開文","我不喜歡喝咖啡，我要喝茶。"]],"m":false,"q":"開文要喝什麼？"},{"f":"9096d1424c","a":[["明華","你好，我是李明華。你叫什麼名字？"],["秋香","我叫阮秋香，我是越南人。"],["明華","越南人？我很喜歡越南咖啡！"]],"m":false,"q":"明華喜歡什麼？"},{"f":"3f6f543ded","a":[["怡君","安同，這是你家人的照片嗎？"],["安同","是的。這是我爸爸、媽媽，這是我姐姐。我沒有哥哥。"]],"m":false,"q":""},{"f":"2e0a2efae0","a":[["怡君","田中，你有沒有兄弟姐妹？"],["田中","我有一個哥哥和兩個妹妹。"]],"m":false,"q":"田中有幾個兄弟姐妹？"},{"f":"c1e53b35d9","a":[["怡君","我叫張怡君。我家有爸爸、媽媽、一個姐姐和我。我姐姐很喜歡喝咖啡，我喜歡喝茶。"]],"m":false,"q":"怡君喜歡喝什麼？"},{"f":"59e35886d1","a":[["如玉","安同，週末你常做什麼？"],["安同","我常去打籃球，可是這個週末我想去看電影。"]],"m":false,"q":"這個週末，安同想做什麼？"},{"f":"75192259d6","a":[["安同","如玉，我們明天去游泳，好嗎？"],["如玉","我不喜歡游泳，我們去打網球，怎麼樣？"],["安同","好啊。"]],"m":true,"q":"他們明天要做什麼？"},{"f":"3f2ea066fc","a":[["開文","你們好，我叫王開文，我是美國人。我喜歡打籃球，也喜歡看電影，可是我不喜歡游泳。"]],"m":false,"q":"開文不喜歡什麼？"},{"f":"da40692a96","a":[["田中","月美，你喜歡什麼運動？"],["月美","我喜歡游泳，也喜歡打網球，可是我不喜歡打籃球。"]],"m":false,"q":"月美不喜歡什麼？"},{"f":"a8b2e0423c","a":[["安同","老闆，請問這支手機多少錢？"],["老闆","一萬兩千塊。"],["安同","太貴了。舊的多少錢？"],["老闆","舊的八千塊。"]],"m":false,"q":"舊的手機多少錢？"},{"f":"6f59e00964","a":[["月美","老闆，我要兩杯熱咖啡。"],["老闆","一杯六十塊，一共一百二十塊。"]],"m":false,"q":"月美一共要多少錢？"},{"f":"cb9bcb5d2c","a":[["怡君","安同，你的手機很好看，多少錢？"],["安同","不貴，九千塊。"],["怡君","真便宜！我的手機兩萬塊。"]],"m":false,"q":"怡君的手機多少錢？"},{"f":"4d699dfabd","a":[["明華","如玉，這家的牛肉麵很有名，我們吃這個，好不好？"],["如玉","好啊，可是我不喜歡吃辣的。"]],"m":false,"q":"如玉不喜歡什麼？"},{"f":"c7b5e127ba","a":[["月美","明華，我想吃兩碗牛肉麵。"],["明華","兩碗？太多了吧！"]],"m":false,"q":"明華覺得怎麼樣？"},{"f":"83ce5077f8","a":[["月美","老闆，一碗牛肉麵多少錢？"],["老闆","大碗一百五十塊，小碗一百塊。"],["月美","我要一碗小的。"]],"m":false,"q":"月美的牛肉麵多少錢？"}]''')
+          KEY=os.environ.get("KEY","").strip(); REGION=os.environ.get("REGION","").strip().lower().replace(" ","")
+          if not KEY or not REGION: raise SystemExit("Thieu AZURE_SPEECH_KEY hoac AZURE_SPEECH_REGION trong Secrets")
+          URL=f"https://{REGION}.tts.speech.microsoft.com/cognitiveservices/v1"
           FEMALE={"月美","怡君","如玉","秋香"}
-          F,M="zh-TW-HsiaoChenNeural","zh-TW-YunJheNeural"
+          F,F2,M="zh-TW-HsiaoChenNeural","zh-TW-HsiaoYuNeural","zh-TW-YunJheNeural"
           def cast(it):
-              # mỗi bài: nam thứ nhất = YunJhe, nam thứ hai = YunJhe trầm hơn; nữ thứ nhất = HsiaoChen, nữ thứ hai = HsiaoYu
-              seen={"m":[],"f":[]}; out={}
+              # nam thứ nhất = YunJhe, nam thứ hai (hoặc 老闆) = YunJhe trầm hơn; nữ thứ nhất = HsiaoChen, nữ thứ hai = HsiaoYu
+              seen={"m":0,"f":0}; out={}
               for sp,_ in it["a"]:
                   if sp in out: continue
                   male=(sp not in FEMALE) if sp else it["m"]
-                  g="m" if male else "f"; seen[g].append(sp); k=len(seen[g])-1
-                  if male: out[sp]=(M,"-15Hz" if (sp=="老闆" or k>0) else "+0Hz")
-                  else: out[sp]=(F if k==0 else "zh-TW-HsiaoYuNeural","+0Hz")
+                  if male: out[sp]=(M,"-12%" if (sp=="老闆" or seen["m"]) else "+0%"); seen["m"]+=1
+                  else: out[sp]=(F if seen["f"]==0 else F2,"+0%"); seen["f"]+=1
               return out
-          async def one(txt,v,p,out):
+          def tts(txt,voice,pitch,out):
+              ssml=(f"<speak version='1.0' xml:lang='zh-TW'><voice name='{voice}'>"
+                    f"<prosody rate='-15%' pitch='{pitch}'>{escape(txt)}</prosody></voice></speak>").encode("utf-8")
               for i in range(5):
+                  req=urllib.request.Request(URL,data=ssml,method="POST",headers={
+                      "Ocp-Apim-Subscription-Key":KEY,"Content-Type":"application/ssml+xml",
+                      "X-Microsoft-OutputFormat":"audio-24khz-48kbitrate-mono-mp3","User-Agent":"mini-cat"})
                   try:
-                      await edge_tts.Communicate(txt,v,rate="-15%",pitch=p).save(out); return
-                  except Exception as e:
-                      print("retry",i,type(e).__name__,e,flush=True); await asyncio.sleep(5*(i+1))
+                      with urllib.request.urlopen(req,timeout=60) as r: open(out,"wb").write(r.read()); return
+                  except urllib.error.HTTPError as e:
+                      print("loi",e.code,e.read()[:200],flush=True)
+                      if e.code in (401,403): raise SystemExit("Ma khoa hoac vung (region) chua dung")
+                  except Exception as e: print("thu lai",i,e,flush=True)
+                  time.sleep(3*(i+1))
               raise SystemExit("TTS failed: "+txt)
-          async def main():
-              os.makedirs("audio",exist_ok=True); os.makedirs("tmp",exist_ok=True)
-              subprocess.run(["ffmpeg","-y","-loglevel","error","-f","lavfi","-i","anullsrc=r=24000:cl=mono","-t","1.0","tmp/gap.wav"],check=True)
-              for it in LINES:
-                  parts=[]; vc=cast(it)
-                  for n,(sp,txt) in enumerate(it["a"]):
-                      v,p=vc[sp]; mp=f"tmp/{it['f']}_{n}.mp3"; wv=mp[:-4]+".wav"
-                      await one(txt,v,p,mp)
-                      subprocess.run(["ffmpeg","-y","-loglevel","error","-i",mp,"-ar","24000","-ac","1",wv],check=True)
-                      parts+=[wv,"tmp/gap.wav"]
-                  if it.get("q"):
-                      # giống đề TOCFL: nghỉ lâu hơn rồi người dẫn (giọng HsiaoYu) đọc câu hỏi
-                      qm=f"tmp/{it['f']}_q.mp3"; qw=qm[:-4]+".wav"
-                      await one(it["q"],"zh-TW-HsiaoYuNeural","+0Hz",qm)
-                      subprocess.run(["ffmpeg","-y","-loglevel","error","-i",qm,"-ar","24000","-ac","1",qw],check=True)
-                      parts+=["tmp/gap.wav",qw,"tmp/gap.wav"]
-                  lst=f"tmp/{it['f']}.txt"; open(lst,"w").write("".join(f"file '{os.path.basename(x)}'\n" for x in parts[:-1]))
-                  subprocess.run(["ffmpeg","-y","-loglevel","error","-f","concat","-safe","0","-i",lst,"-ac","1","-ar","24000","-b:a","48k",f"audio/{it['f']}.mp3"],check=True)
-                  print("ok",it["f"])
-          asyncio.run(main())
+          def wav(mp,wv): subprocess.run(["ffmpeg","-y","-loglevel","error","-i",mp,"-ar","24000","-ac","1",wv],check=True)
+          os.makedirs("audio",exist_ok=True); os.makedirs("tmp",exist_ok=True)
+          subprocess.run(["ffmpeg","-y","-loglevel","error","-f","lavfi","-i","anullsrc=r=24000:cl=mono","-t","1.0","tmp/gap.wav"],check=True)
+          for it in LINES:
+              vc=cast(it); parts=[]
+              for n,(sp,txt) in enumerate(it["a"]):
+                  v,p=vc[sp]; mp=f"tmp/{it['f']}_{n}.mp3"; tts(txt,v,p,mp); wav(mp,mp[:-4]+".wav"); parts+=[mp[:-4]+".wav","tmp/gap.wav"]
+              if it.get("q"):
+                  # giống đề TOCFL: nghỉ rồi người dẫn đọc câu hỏi
+                  qm=f"tmp/{it['f']}_q.mp3"; tts(it["q"],F2,"+0%",qm); wav(qm,qm[:-4]+".wav"); parts+=["tmp/gap.wav",qm[:-4]+".wav","tmp/gap.wav"]
+              lst=f"tmp/{it['f']}.txt"; open(lst,"w").write("".join(f"file '{os.path.basename(x)}'\n" for x in parts[:-1]))
+              subprocess.run(["ffmpeg","-y","-loglevel","error","-f","concat","-safe","0","-i",lst,"-ac","1","-ar","24000","-b:a","48k",f"audio/{it['f']}.mp3"],check=True)
+              print("ok",it["f"],flush=True)
           PY
-          python gen.py
+          python3 gen.py
           ls audio | wc -l
       - name: Luu len kho
         run: |
