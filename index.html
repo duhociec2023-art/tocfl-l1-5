@@ -472,7 +472,12 @@ function results(){if(timer){clearInterval(timer);timer=null}
 function sendResult(all,minutes,sc){if(!SHEET_URL||S.sent)return;S.sent=true;
   const right=k=>`${S.secs[k].hist.filter(h=>h.ok).length}/${LEN[k]}`;
   const les=l=>{const h=all.filter(x=>x.item.les===l);return `${h.filter(x=>x.ok).length}/${h.length}`};
-  const wrong=all.filter(h=>!h.ok).map(h=>`${h.item.s==="L"?"Nghe":"Đọc"} L${h.item.les}: ${h.item.q} → chọn ${optText(h.item,h.chosen)} (đúng: ${optText(h.item,h.item.k)})`).join("\n");
+  // mỗi câu sai ghi kèm nội dung đã nghe/đọc để giáo viên biết học sinh hổng ở đâu
+  const cut=(t,n)=>t.length>n?t.slice(0,n)+"…":t;
+  const stemOf=it=>it.s==="L"?"「"+it.a.map(([sp,t])=>(sp?sp+"：":"")+t).join(" ")+"」"
+    :[it.img?`[Hình: ${alt(it.img)}]`:"",it.t?"「"+cut(it.t.replace(/\n/g," ").replace(/^「(.*)」$/,"$1"),60)+"」":""].filter(Boolean).join(" ");
+  const wrong=all.filter(h=>!h.ok).map(h=>{const it=h.item,st=stemOf(it),zhQ=!/[a-zA-Zà-ỹÀ-Ỹ]/.test(it.q);
+    return `${it.s==="L"?"Nghe":"Đọc"} L${it.les} · ${st}${zhQ||!st?(st?" ":"")+it.q:""} → chọn ${optText(it,h.chosen)} (đúng: ${optText(it,it.k)})`}).join("\n");
   // [tên cột, giá trị]: muốn thêm/bớt cột chỉ cần sửa ở đây, Apps Script tự tạo tiêu đề
   const d={sheet:"Bảng điểm",cols:[["Họ tên",S.name||"(không tên)"],["Tổng điểm /100",sc.total],["Xếp loại",sc.gName],["Đề xuất",sc.gAdv],
     ["Nghe /50",sc.pL],["Mức Nghe",secLevel(S.secs.L.hist)],["Nghe đúng",right("L")],
