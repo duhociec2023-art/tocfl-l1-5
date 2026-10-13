@@ -60,6 +60,8 @@ button:focus-visible,.opt:focus-visible{outline:2px solid var(--accent);outline-
 .figure{display:flex;justify-content:center;background:var(--bg);border-radius:8px;padding:10px}
 .figure svg{width:220px;max-width:100%;height:auto}
 .q{font-family:var(--f-zh);font-size:19px;font-weight:700}
+.q.qv{font-family:var(--f-ui);font-size:16px;font-weight:600}
+.cast{font-size:13px;color:var(--muted);margin:0}.cast .zht{font-family:var(--f-zh);color:var(--ink)}
 .opts{display:flex;flex-direction:column;gap:8px}
 .opts.pics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 .opt{display:flex;gap:12px;align-items:center;text-align:left;background:var(--surface);border:1px solid var(--line);color:var(--ink);font-family:var(--f-zh);font-size:18px;font-weight:500;padding:12px 14px;min-width:0}
@@ -112,10 +114,23 @@ summary{cursor:pointer;font-weight:600}
 </div>
 
 <script>
-const LESSONS={1:"歡迎你來台灣",2:"我的家人",3:"週末做什麼",4:"多少錢",5:"牛肉麵真好吃"};
+const LESSONS={1:"歡迎你來臺灣",2:"我的家人",3:"週末做什麼",4:"多少錢",5:"牛肉麵真好吃"};
 const LEVELS={1:"Mức 1 · Nhận diện từ",2:"Mức 2 · Hiểu câu",3:"Mức 3 · Hiểu hội thoại/đoạn văn"};
+/* ---------- chấm điểm (thang 100 = Nghe 50 + Đọc 50) ----------
+   Ước lượng năng lực θ theo mô hình IRT (Rasch) với độ khó câu b = 1, 2, 3:
+   P(đúng) = 1/(1+e^(-1.7(θ-b))). Tìm θ khớp nhất với chuỗi đúng/sai (có kéo nhẹ về 2 để ổn định),
+   rồi đổi θ 0.5 → 0 điểm, θ 3.5 → 50 điểm. Câu khó làm đúng được tính nhiều hơn câu dễ. */
+function theta(h){if(!h.length)return null;let best=2,bl=-1e9;
+  for(let t=0;t<=4.0001;t+=0.05){let l=-((t-2)**2)/2;
+    for(const x of h){const p=1/(1+Math.exp(-1.7*(t-x.item.lv)));l+=Math.log(x.ok?p:1-p)}
+    if(l>bl){bl=l;best=t}}return best}
+const secPoints=h=>{const t=theta(h);return t===null?0:Math.round(Math.min(1,Math.max(0,(t-.5)/3))*50)};
+const secLevel=h=>{const t=theta(h);return t===null?"Chưa làm":LEVELS[t<1.5?1:t<2.5?2:3]};
+const GRADES=[[80,"Giỏi","Vững L1–5, học tiếp từ L6"],[65,"Khá","Ôn nhanh các bài yếu rồi học tiếp L6"],
+  [50,"Trung bình","Ôn lại L1–5, tập trung các bài yếu"],[0,"Yếu","Học lại từ L1"]];
+const grade=p=>GRADES.find(g=>p>=g[0]);
 const LEN={L:20,R:20};          // số câu mỗi phần
-const MINUTES=50;               // thời gian làm bài
+const MINUTES=50;              // thời gian làm bài
 const SHEET_URL="https://script.google.com/macros/s/AKfycbxmcByzC3YDA4yOLLgNMMSeN9MTEbbsFRmNVvcHpLXjlY5B1zmnjf3HseeWOCi6UOkwHA/exec";            // link /exec của Google Apps Script (để trống = không gửi)
 const ZN=["","一","兩","三","四","五"];
 
@@ -126,7 +141,7 @@ const fig=(x,h)=>{const t=82-h;return `<circle class="f" cx="${x}" cy="${t}" r="
 const phoneAt=x=>`<rect class="f" x="${x}" y="12" width="32" height="66" rx="6"/><rect class="w" x="${x+5}" y="20" width="22" height="44" rx="2"/><circle class="a" cx="${x+16}" cy="71" r="2.5"/>`;
 const DRAW={
   coffee:n=>{n=+n||1;const s=60-n*22+6;return Array.from({length:n},(_,i)=>mug(s+i*44,38)).join("")},
-  ice:()=>`<path class="f" d="M45 22h30l-4 56h-22z"/><rect class="w" x="51" y="40" width="9" height="9"/><rect class="w" x="61" y="52" width="8" height="8"/><path d="M66 22l8-14"/>`,
+  bun:n=>{n=+n||1;const s=60-(n-1)*24;return Array.from({length:n},(_,i)=>{const x=s+i*48;return `<path class="w" d="M${x-24} 64q0-32 24-32q24 0 24 32z"/><path d="M${x-8} 40q8 6 16 0M${x} 33v8"/><path d="M${x-30} 64h60"/>`}).join("")},
   tea:()=>`<ellipse class="f" cx="58" cy="56" rx="26" ry="19"/><path d="M33 52q-14-2-16-16"/><path d="M83 46q14 0 12 16q-2 10-12 10"/><path class="f" d="M46 38q12-10 24 0z"/><circle class="a" cx="58" cy="30" r="3"/>`,
   noodle:n=>{n=+n||1;const s=60-(n-1)*26;return Array.from({length:n},(_,i)=>bowl(s+i*52)).join("")},
   spicy:()=>bowl(46)+`<path class="r" d="M92 28q12 2 8 20q-4 14-14 20q6-14 2-38z"/><path d="M94 28q2-7 7-9"/>`,
@@ -140,132 +155,135 @@ const DRAW={
   tag:t=>`<path class="g" d="M14 30h66l22 15l-22 15h-66z"/><circle class="w" cx="88" cy="45" r="3"/><text x="47" y="50" text-anchor="middle">${t}</text>`,
   phonetag:t=>phoneAt(8)+`<path class="g" d="M46 34h52l16 12l-16 12h-52z"/><text x="74" y="51" text-anchor="middle">${t}</text>`,
 };
-const ALT={coffee:n=>`${ZN[+n||1]}杯熱咖啡`,ice:()=>"冰咖啡",tea:()=>"茶",noodle:n=>`${ZN[+n||1]}碗牛肉麵`,spicy:()=>"很辣的牛肉麵",
+const ALT={coffee:n=>`${ZN[+n||1]}杯熱咖啡`,bun:n=>`${ZN[+n||1]}個包子`,tea:()=>"茶",noodle:n=>`${ZN[+n||1]}碗牛肉麵`,spicy:()=>"很辣的牛肉麵",
   bball:()=>"打籃球",tennis:()=>"打網球",swim:()=>"游泳",movie:()=>"看電影",music:()=>"聽音樂",phone:()=>"手機",
-  family:n=>`${ZN[+n]}個人的家`,tag:t=>`價錢 ${t}`,phonetag:t=>`手機 ${t}`};
+  family:n=>`${ZN[+n]}個人的家`,tag:t=>`${t}`,phonetag:t=>`手機 ${t}`};
 const split=s=>{const i=s.indexOf(":");return i<0?[s,""]:[s.slice(0,i),s.slice(i+1)]};
 const pic=(s,lbl)=>{const[n,a]=split(s);return `<svg class="pic" viewBox="0 0 120 90" role="img" aria-label="${lbl||"Hình"}">${DRAW[n](a)}</svg>`};
 const alt=s=>{const[n,a]=split(s);return ALT[n](a)};
 
 /* ---------- ngân hàng câu hỏi ----------
-   s: L nghe / R đọc · les: bài · lv: độ khó 1–3 · a: lời đọc [người nói, câu] · t: đoạn văn
-   img: hình kèm câu hỏi · po: đáp án là hình · o: đáp án (phương án đúng luôn đặt đầu, khi hiển thị sẽ xáo) · g: nhóm cùng đoạn văn (mỗi nhóm chỉ ra 1 câu) */
+   CHỈ dùng từ vựng 當代中文課程 第一冊 L1–L5. Lời hướng dẫn viết bằng tiếng Việt (vì 選、圖、句子、回答、最… chưa học).
+   s: L nghe / R đọc · les: bài · lv: độ khó 1–3 · a: lời đọc [nhân vật, câu] · t: đoạn văn
+   img: hình kèm câu hỏi · po: đáp án là hình · o: đáp án (phương án đúng luôn đặt đầu, khi hiển thị sẽ xáo) · g: nhóm cùng đoạn văn */
+const Q_REPLY="Câu đáp nào phù hợp nhất?",Q_PICK="Nghe và chọn hình đúng.",Q_IMG="Nhìn hình, chọn câu đúng.",
+      Q_FILL="Chọn từ phù hợp điền vào chỗ trống.",Q_GRAM="Câu nào đúng ngữ pháp?",Q_TRUE="Câu nào đúng với nội dung?";
 const BANK=[
 // ===== NGHE · mức 1
-{s:"L",les:1,lv:1,a:[["","我是日本人。"]],q:"他是哪國人？",o:["日本人","美國人","台灣人"]},
-{s:"L",les:1,lv:1,a:[["","我要喝咖啡。"]],q:"他要喝什麼？",o:["咖啡","茶","牛肉麵"]},
+{s:"L",les:1,lv:1,a:[["","我是日本人。"]],q:"他是哪國人？",o:["日本人","美國人","臺灣人"]},
+{s:"L",les:1,lv:1,a:[["","我要喝咖啡。"]],q:"他要喝什麼？",o:["咖啡","茶","牛肉湯"]},
 {s:"L",les:2,lv:1,a:[["","我有兩個哥哥。"]],q:"他有幾個哥哥？",o:["兩個","一個","三個"]},
 {s:"L",les:2,lv:1,a:[["","這是我媽媽。"]],q:"這是誰？",o:["他媽媽","他爸爸","他姐姐"]},
 {s:"L",les:3,lv:1,a:[["","我週末常打籃球。"]],q:"他週末常做什麼？",o:["打籃球","打網球","游泳"]},
 {s:"L",les:3,lv:1,a:[["","我喜歡看電影。"]],q:"他喜歡做什麼？",o:["看電影","聽音樂","打網球"]},
-{s:"L",les:4,lv:1,a:[["","這個手機八千塊。"]],q:"手機多少錢？",o:["八千塊","八百塊","一千八百塊"]},
-{s:"L",les:4,lv:1,a:[["","我要一杯熱咖啡。"]],q:"他要什麼？",o:["熱咖啡","冰咖啡","熱茶"]},
-{s:"L",les:5,lv:1,a:[["","牛肉麵很好吃。"]],q:"什麼很好吃？",o:["牛肉麵","咖啡","烏龍茶"]},
-{s:"L",les:5,lv:1,a:[["","我很餓，我想吃飯。"]],q:"他現在怎麼樣？",o:["他很餓","他不餓","他想喝茶"]},
+{s:"L",les:4,lv:1,a:[["","這支手機八千塊。"]],q:"手機多少錢？",o:["八千塊","八百塊","一千八百塊"]},
+{s:"L",les:4,lv:1,a:[["","我要一杯熱咖啡。"]],q:"他要什麼？",o:["熱咖啡","熱茶","包子"]},
+{s:"L",les:5,lv:1,a:[["","牛肉麵很好吃。"]],q:"什麼很好吃？",o:["牛肉麵","包子","越南菜"]},
+{s:"L",les:5,lv:1,a:[["","我很喜歡吃臺灣的牛肉麵。"]],q:"他喜歡吃什麼？",o:["牛肉麵","包子","越南菜"]},
 // NGHE · mức 1 · chọn hình
-{s:"L",les:1,lv:1,po:1,a:[["","我喜歡喝茶。"]],q:"聽一聽，選出對的圖。",o:["tea","coffee:1","noodle:1"]},
-{s:"L",les:4,lv:1,po:1,a:[["","我要一杯冰咖啡。"]],q:"聽一聽，選出對的圖。",o:["ice","coffee:1","tea"]},
-{s:"L",les:3,lv:1,po:1,a:[["","我週末常去游泳。"]],q:"聽一聽，選出對的圖。",o:["swim","bball","tennis"]},
-{s:"L",les:3,lv:1,po:1,a:[["","我弟弟喜歡打網球。"]],q:"聽一聽，選出對的圖。",o:["tennis","bball","swim"]},
-{s:"L",les:3,lv:1,po:1,a:[["","明天我們一起去看電影。"]],q:"聽一聽，選出對的圖。",o:["movie","music","phone"]},
-{s:"L",les:3,lv:1,po:1,a:[["","我姐姐喜歡聽音樂。"]],q:"聽一聽，選出對的圖。",o:["music","movie","tennis"]},
-{s:"L",les:4,lv:1,po:1,a:[["","我想買一個新手機。"]],q:"聽一聽，選出對的圖。",o:["phone","coffee:1","movie"]},
-{s:"L",les:5,lv:1,po:1,a:[["","老闆，我要一碗牛肉麵。"]],q:"聽一聽，選出對的圖。",o:["noodle:1","noodle:2","coffee:1"]},
+{s:"L",les:1,lv:1,po:1,a:[["","我喜歡喝茶。"]],q:Q_PICK,o:["tea","coffee:1","noodle:1"]},
+{s:"L",les:4,lv:1,po:1,a:[["","老闆，我要一個包子。"]],q:Q_PICK,o:["bun:1","coffee:1","tea"]},
+{s:"L",les:3,lv:1,po:1,a:[["","我週末常去游泳。"]],q:Q_PICK,o:["swim","bball","tennis"]},
+{s:"L",les:3,lv:1,po:1,a:[["","我哥哥喜歡打網球。"]],q:Q_PICK,o:["tennis","bball","swim"]},
+{s:"L",les:3,lv:1,po:1,a:[["","明天我們一起去看電影。"]],q:Q_PICK,o:["movie","music","phone"]},
+{s:"L",les:3,lv:1,po:1,a:[["","我姐姐喜歡聽音樂。"]],q:Q_PICK,o:["music","movie","tennis"]},
+{s:"L",les:4,lv:1,po:1,a:[["","我想買一支新手機。"]],q:Q_PICK,o:["phone","coffee:1","movie"]},
+{s:"L",les:5,lv:1,po:1,a:[["","老闆，我要一碗牛肉麵。"]],q:Q_PICK,o:["noodle:1","noodle:2","coffee:1"]},
 // ===== NGHE · mức 2 (chọn câu đáp)
-{s:"L",les:1,lv:2,a:[["","你叫什麼名字？"]],q:"哪一個回答最好？",o:["我叫李明華。","我是美國人。","我喜歡喝茶。"]},
-{s:"L",les:1,lv:2,a:[["","你是哪國人？"]],q:"哪一個回答最好？",o:["我是日本人。","我姓王。","我不喝咖啡。"]},
-{s:"L",les:1,lv:2,a:[["","你喝不喝咖啡？"]],q:"哪一個回答最好？",o:["我不喝，謝謝。","我不是咖啡。","咖啡是美國人。"]},
-{s:"L",les:2,lv:2,a:[["","你家有幾個人？"]],q:"哪一個回答最好？",o:["我家有五個人。","這是我家。","我有照片。"]},
-{s:"L",les:2,lv:2,a:[["","照片裡的這個人是誰？"]],q:"哪一個回答最好？",o:["是我弟弟。","這是我的照片。","照片很好看。"]},
-{s:"L",les:2,lv:2,a:[["","你有哥哥嗎？"]],q:"哪一個回答最好？",o:["有，我有一個哥哥。","是，我是哥哥。","哥哥很好看嗎？"]},
-{s:"L",les:3,lv:2,a:[["","你週末想做什麼？"]],q:"哪一個回答最好？",o:["我想去看電影。","我是學生。","電影很好看嗎？"]},
-{s:"L",les:3,lv:2,a:[["","明天晚上我們一起去打網球，好不好？"]],q:"哪一個回答最好？",o:["好啊，我也想去。","我不是網球。","我有一個網球老師。"]},
-{s:"L",les:3,lv:2,a:[["","你喜歡什麼運動？"]],q:"哪一個回答最好？",o:["我喜歡打籃球。","我喜歡喝咖啡。","運動很好喝。"]},
-{s:"L",les:4,lv:2,a:[["","請問這杯咖啡多少錢？"]],q:"哪一個回答最好？",o:["六十五塊。","我要熱的。","很好喝。"]},
-{s:"L",les:4,lv:2,a:[["","你要大杯的還是小杯的？"]],q:"哪一個回答最好？",o:["大杯的，謝謝。","我要買手機。","一共一百塊。"]},
-{s:"L",les:4,lv:2,a:[["","你要買幾杯？"]],q:"哪一個回答最好？",o:["三杯。","三個人。","很便宜。"]},
-{s:"L",les:5,lv:2,a:[["","這家店的牛肉麵怎麼樣？"]],q:"哪一個回答最好？",o:["很好吃，可是有一點辣。","一碗牛肉麵。","我很喜歡喝。"]},
-{s:"L",les:5,lv:2,a:[["","你想吃什麼？"]],q:"哪一個回答最好？",o:["我想吃牛肉麵。","我很喜歡喝。","我不想喝茶。"]},
-{s:"L",les:5,lv:2,a:[["","這碗牛肉麵辣不辣？"]],q:"哪一個回答最好？",o:["有一點辣。","很好喝。","一百塊。"]},
+{s:"L",les:1,lv:2,a:[["","你叫什麼名字？"]],q:Q_REPLY,o:["我叫李明華。","我是美國人。","我喜歡喝茶。"]},
+{s:"L",les:1,lv:2,a:[["","你是哪國人？"]],q:Q_REPLY,o:["我是日本人。","我姓王。","我不喝咖啡。"]},
+{s:"L",les:1,lv:2,a:[["","你喝不喝咖啡？"]],q:Q_REPLY,o:["我不喝，謝謝。","我不是咖啡。","咖啡是美國人。"]},
+{s:"L",les:2,lv:2,a:[["","你家有幾個人？"]],q:Q_REPLY,o:["我家有五個人。","這是我家。","我有照片。"]},
+{s:"L",les:2,lv:2,a:[["","這個人是誰？"]],q:Q_REPLY,o:["是我哥哥。","這是我的照片。","照片很好看。"]},
+{s:"L",les:2,lv:2,a:[["","你有哥哥嗎？"]],q:Q_REPLY,o:["有，我有一個哥哥。","是，我是哥哥。","哥哥很好看嗎？"]},
+{s:"L",les:3,lv:2,a:[["","你週末想做什麼？"]],q:Q_REPLY,o:["我想去看電影。","我是老師。","電影很好看嗎？"]},
+{s:"L",les:3,lv:2,a:[["","明天晚上我們一起去打網球，好不好？"]],q:Q_REPLY,o:["好啊，我也想去。","我不是網球。","我有一個網球老師。"]},
+{s:"L",les:3,lv:2,a:[["","你喜歡什麼運動？"]],q:Q_REPLY,o:["我喜歡打籃球。","我喜歡喝咖啡。","運動很好看。"]},
+{s:"L",les:4,lv:2,a:[["","請問這杯咖啡多少錢？"]],q:Q_REPLY,o:["六十五塊。","我要熱的。","很好喝。"]},
+{s:"L",les:4,lv:2,a:[["","你要大杯的還是小杯的？"]],q:Q_REPLY,o:["大杯的，謝謝。","我要買手機。","一共一百塊。"]},
+{s:"L",les:4,lv:2,a:[["","你要買幾杯？"]],q:Q_REPLY,o:["三杯。","三個人。","很便宜。"]},
+{s:"L",les:5,lv:2,a:[["","這家店的牛肉麵怎麼樣？"]],q:Q_REPLY,o:["很好吃，可是有一點辣。","一碗牛肉麵。","我很喜歡喝。"]},
+{s:"L",les:5,lv:2,a:[["","你想吃什麼？"]],q:Q_REPLY,o:["我想吃牛肉麵。","我很喜歡喝。","我不想喝茶。"]},
+{s:"L",les:5,lv:2,a:[["","這碗牛肉麵辣不辣？"]],q:Q_REPLY,o:["有一點辣。","很好喝。","一百塊。"]},
 // NGHE · mức 2 · chọn hình (cần nghe số)
-{s:"L",les:2,lv:2,po:1,a:[["","我家有五個人：爸爸、媽媽、哥哥、妹妹和我。"]],q:"聽一聽，選出對的圖。",o:["family:5","family:4","family:3"]},
-{s:"L",les:4,lv:2,po:1,a:[["","一杯咖啡五十塊。"]],q:"聽一聽，選出對的圖。",o:["tag:$50","tag:$15","tag:$500"]},
-{s:"L",les:5,lv:2,po:1,a:[["","我很餓，我要兩碗牛肉麵。"]],q:"聽一聽，選出對的圖。",o:["noodle:2","noodle:1","coffee:2"]},
-// ===== NGHE · mức 3 (hội thoại / tự giới thiệu)
-{s:"L",les:1,lv:3,a:[["男","你好，我姓王，叫王開文。你呢？"],["女","我叫陳月美。王先生，你是哪國人？"],["男","我是美國人。"]],q:"那位小姐姓什麼？",o:["陳","王","月"]},
-{s:"L",les:1,lv:3,a:[["女","你要喝茶還是喝咖啡？"],["男","我不喜歡喝咖啡，請給我茶。"]],q:"男的要喝什麼？",o:["茶","咖啡","都不喝"]},
-{s:"L",les:1,lv:3,a:[["男","你好，我是李大明。你叫什麼名字？"],["女","我叫阮秋香，我是越南人。"],["男","越南人？我很喜歡越南咖啡！"]],q:"男的喜歡什麼？",o:["越南咖啡","台灣的茶","牛肉麵"]},
-{s:"L",les:2,lv:3,a:[["女","這是你家人的照片嗎？"],["男","對，這是我爸爸、媽媽，這是我姐姐。我沒有哥哥。"]],q:"男的家，哪一個對？",o:["他有姐姐","他有哥哥","他沒有姐姐"]},
-{s:"L",les:2,lv:3,a:[["男","你有哥哥、姐姐嗎？"],["女","我有一個哥哥，還有兩個妹妹。"]],q:"女的有幾個兄弟姐妹？",o:["三個","四個","兩個"]},
-{s:"L",les:2,lv:3,a:[["","我家有爸爸、媽媽、一個姐姐和我。我姐姐很喜歡喝咖啡，我喜歡喝茶。"]],q:"誰喜歡喝茶？",o:["說話的人","他姐姐","他媽媽"]},
-{s:"L",les:3,lv:3,a:[["女","週末你常做什麼？"],["男","我常去打籃球，可是這個週末我想在家看電影。"]],q:"這個週末，男的想做什麼？",o:["看電影","打籃球","打網球"]},
-{s:"L",les:3,lv:3,a:[["男","我們明天去游泳，好嗎？"],["女","我不喜歡游泳，我們去打網球，怎麼樣？"],["男","好啊。"]],q:"他們明天要做什麼？",o:["打網球","游泳","看電影"]},
-{s:"L",les:3,lv:3,a:[["","大家好，我叫王小文，我是台灣人。我喜歡打籃球，也喜歡看電影，可是我不喜歡游泳。"]],q:"王小文不喜歡什麼？",o:["游泳","打籃球","看電影"]},
-{s:"L",les:3,lv:3,a:[["男","你喜歡什麼運動？"],["女","我喜歡游泳，也喜歡打網球，可是我不喜歡打籃球。"]],q:"女的不喜歡什麼？",o:["打籃球","游泳","打網球"]},
-{s:"L",les:4,lv:3,a:[["男","小姐，請問這個手機多少錢？"],["女","一萬兩千塊。"],["男","太貴了。那個舊的呢？"],["女","那個八千塊。"]],q:"舊的手機多少錢？",o:["八千塊","一萬兩千塊","兩千塊"]},
-{s:"L",les:4,lv:3,a:[["女","我要兩杯熱咖啡。"],["男","一杯六十塊，一共一百二十塊。"]],q:"女的一共要給多少錢？",o:["一百二十塊","六十塊","一百六十塊"]},
-{s:"L",les:4,lv:3,a:[["女","你的手機很好看，多少錢？"],["男","不貴，九千塊。"],["女","真便宜！我的手機兩萬塊。"]],q:"女的手機多少錢？",o:["兩萬塊","九千塊","一萬九千塊"]},
-{s:"L",les:5,lv:3,a:[["男","這家的牛肉麵很有名，我們吃這個，好不好？"],["女","好啊，可是我不喜歡吃辣的。"]],q:"女的不喜歡什麼？",o:["辣的","牛肉麵","這家店"]},
-{s:"L",les:5,lv:3,a:[["女","我很餓，我想吃兩碗牛肉麵。"],["男","兩碗？太多了吧！"]],q:"男的覺得怎麼樣？",o:["女的吃太多","牛肉麵不好吃","女的不餓"]},
-{s:"L",les:5,lv:3,a:[["女","老闆，一碗牛肉麵多少錢？"],["男","大碗一百五十塊，小碗一百塊。"],["女","我要一碗小的。"]],q:"女的要給多少錢？",o:["一百塊","一百五十塊","兩百五十塊"]},
+{s:"L",les:2,lv:2,po:1,a:[["","我家有五個人：爸爸、媽媽、哥哥、妹妹和我。"]],q:Q_PICK,o:["family:5","family:4","family:3"]},
+{s:"L",les:4,lv:2,po:1,a:[["","一杯咖啡五十塊。"]],q:Q_PICK,o:["tag:$50","tag:$15","tag:$500"]},
+{s:"L",les:5,lv:2,po:1,a:[["","老闆，我們要兩碗牛肉麵。"]],q:Q_PICK,o:["noodle:2","noodle:1","coffee:2"]},
+// ===== NGHE · mức 3 (hội thoại / tự giới thiệu) · tên nhân vật đều là tên trong sách
+{s:"L",les:1,lv:3,a:[["開文","你好，我姓王，叫王開文。你呢？"],["月美","我叫陳月美。王先生，你是哪國人？"],["開文","我是美國人。"]],q:"王先生是哪國人？",o:["美國人","日本人","臺灣人"]},
+{s:"L",les:1,lv:3,a:[["明華","開文，你要喝茶還是喝咖啡？"],["開文","我不喜歡喝咖啡，我要喝茶。"]],q:"開文要喝什麼？",o:["茶","咖啡","都不喝"]},
+{s:"L",les:1,lv:3,a:[["明華","你好，我是李明華。你叫什麼名字？"],["秋香","我叫阮秋香，我是越南人。"],["明華","越南人？我很喜歡越南咖啡！"]],q:"明華喜歡什麼？",o:["越南咖啡","臺灣的茶","牛肉麵"]},
+{s:"L",les:2,lv:3,a:[["怡君","安同，這是你家人的照片嗎？"],["安同","是的。這是我爸爸、媽媽，這是我姐姐。我沒有哥哥。"]],q:Q_TRUE,o:["安同有姐姐","安同有哥哥","安同沒有姐姐"]},
+{s:"L",les:2,lv:3,a:[["怡君","田中，你有沒有兄弟姐妹？"],["田中","我有一個哥哥和兩個妹妹。"]],q:"田中有幾個兄弟姐妹？",o:["三個","四個","兩個"]},
+{s:"L",les:2,lv:3,a:[["怡君","我叫張怡君。我家有爸爸、媽媽、一個姐姐和我。我姐姐很喜歡喝咖啡，我喜歡喝茶。"]],q:"怡君喜歡喝什麼？",o:["茶","咖啡","都喜歡"]},
+{s:"L",les:3,lv:3,a:[["如玉","安同，週末你常做什麼？"],["安同","我常去打籃球，可是這個週末我想去看電影。"]],q:"這個週末，安同想做什麼？",o:["看電影","打籃球","打網球"]},
+{s:"L",les:3,lv:3,a:[["安同","如玉，我們明天去游泳，好嗎？"],["如玉","我不喜歡游泳，我們去打網球，怎麼樣？"],["安同","好啊。"]],q:"他們明天要做什麼？",o:["打網球","游泳","看電影"]},
+{s:"L",les:3,lv:3,a:[["開文","你們好，我叫王開文，我是美國人。我喜歡打籃球，也喜歡看電影，可是我不喜歡游泳。"]],q:"開文不喜歡什麼？",o:["游泳","打籃球","看電影"]},
+{s:"L",les:3,lv:3,a:[["田中","月美，你喜歡什麼運動？"],["月美","我喜歡游泳，也喜歡打網球，可是我不喜歡打籃球。"]],q:"月美不喜歡什麼？",o:["打籃球","游泳","打網球"]},
+{s:"L",les:4,lv:3,a:[["安同","老闆，請問這支手機多少錢？"],["老闆","一萬兩千塊。"],["安同","太貴了。那支舊的呢？"],["老闆","那支八千塊。"]],q:"舊的手機多少錢？",o:["八千塊","一萬兩千塊","兩千塊"]},
+{s:"L",les:4,lv:3,a:[["月美","老闆，我要兩杯熱咖啡。"],["老闆","一杯六十塊，一共一百二十塊。"]],q:"月美一共要多少錢？",o:["一百二十塊","六十塊","一百六十塊"]},
+{s:"L",les:4,lv:3,a:[["怡君","安同，你的手機很好看，多少錢？"],["安同","不貴，九千塊。"],["怡君","真便宜！我的手機兩萬塊。"]],q:"怡君的手機多少錢？",o:["兩萬塊","九千塊","一萬九千塊"]},
+{s:"L",les:5,lv:3,a:[["明華","如玉，這家的牛肉麵很有名，我們吃這個，好不好？"],["如玉","好啊，可是我不喜歡吃辣的。"]],q:"如玉不喜歡什麼？",o:["辣的","牛肉麵","這家店"]},
+{s:"L",les:5,lv:3,a:[["月美","明華，我想吃兩碗牛肉麵。"],["明華","兩碗？太多了吧！"]],q:"明華覺得怎麼樣？",o:["月美吃太多","牛肉麵不好吃","牛肉麵太辣"]},
+{s:"L",les:5,lv:3,a:[["月美","老闆，一碗牛肉麵多少錢？"],["老闆","大碗一百五十塊，小碗一百塊。"],["月美","我要一碗小的。"]],q:"月美的牛肉麵多少錢？",o:["一百塊","一百五十塊","兩百五十塊"]},
 // ===== ĐỌC · mức 1 (điền từ)
-{s:"R",les:1,lv:1,t:"我＿＿李，叫李明。",q:"選出最好的詞。",o:["姓","是","要"]},
-{s:"R",les:1,lv:1,t:"你喜歡＿＿咖啡嗎？",q:"選出最好的詞。",o:["喝","吃","看"]},
-{s:"R",les:2,lv:1,t:"我家有五＿＿人。",q:"選出最好的詞。",o:["個","杯","塊"]},
-{s:"R",les:2,lv:1,t:"這是我＿＿照片。",q:"選出最好的詞。",o:["的","嗎","呢"]},
-{s:"R",les:3,lv:1,t:"我週末喜歡＿＿網球。",q:"選出最好的詞。",o:["打","看","喝"]},
-{s:"R",les:3,lv:1,t:"你＿＿去看電影嗎？",q:"選出最好的詞。",o:["想","很","都"]},
-{s:"R",les:4,lv:1,t:"請問這杯茶多少＿＿？",q:"選出最好的詞。",o:["錢","個","人"]},
-{s:"R",les:4,lv:1,t:"這個手機很＿＿，我不買。",q:"選出最好的詞。",o:["貴","好吃","好喝"]},
-{s:"R",les:5,lv:1,t:"這碗牛肉麵很好＿＿。",q:"選出最好的詞。",o:["吃","喝","看"]},
-{s:"R",les:5,lv:1,t:"我很＿＿，我們去吃飯吧。",q:"選出最好的詞。",o:["餓","辣","貴"]},
+{s:"R",les:1,lv:1,t:"我＿＿李，叫李明華。",q:Q_FILL,o:["姓","是","要"]},
+{s:"R",les:1,lv:1,t:"你喜歡＿＿咖啡嗎？",q:Q_FILL,o:["喝","吃","看"]},
+{s:"R",les:2,lv:1,t:"我家有五＿＿人。",q:Q_FILL,o:["個","杯","塊"]},
+{s:"R",les:2,lv:1,t:"這是我＿＿照片。",q:Q_FILL,o:["的","嗎","呢"]},
+{s:"R",les:3,lv:1,t:"我週末喜歡＿＿網球。",q:Q_FILL,o:["打","看","喝"]},
+{s:"R",les:3,lv:1,t:"你＿＿去看電影嗎？",q:Q_FILL,o:["想","很","都"]},
+{s:"R",les:4,lv:1,t:"請問這杯茶多少＿＿？",q:Q_FILL,o:["錢","個","人"]},
+{s:"R",les:4,lv:1,t:"這支手機很＿＿，我不買。",q:Q_FILL,o:["貴","好吃","好喝"]},
+{s:"R",les:5,lv:1,t:"這碗牛肉麵很好＿＿。",q:Q_FILL,o:["吃","喝","看"]},
+{s:"R",les:5,lv:1,t:"這家店的牛肉麵很＿＿名。",q:Q_FILL,o:["有","是","很"]},
 // ĐỌC · mức 1 · nhìn hình chọn câu
-{s:"R",les:1,lv:1,img:"tea",q:"看圖，選出對的句子。",o:["我喜歡喝茶。","我喜歡喝咖啡。","我喜歡吃牛肉麵。"]},
-{s:"R",les:3,lv:1,img:"bball",q:"看圖，選出對的句子。",o:["他喜歡打籃球。","他喜歡游泳。","他喜歡看電影。"]},
-{s:"R",les:3,lv:1,img:"music",q:"看圖，選出對的句子。",o:["我週末喜歡聽音樂。","我週末喜歡看電影。","我週末喜歡打網球。"]},
-{s:"R",les:5,lv:1,img:"noodle:1",q:"看圖，選出對的句子。",o:["這是一碗牛肉麵。","這是一杯咖啡。","這是一個手機。"]},
+{s:"R",les:1,lv:1,img:"tea",q:Q_IMG,o:["我喜歡喝茶。","我喜歡喝咖啡。","我喜歡吃牛肉麵。"]},
+{s:"R",les:3,lv:1,img:"bball",q:Q_IMG,o:["他喜歡打籃球。","他喜歡游泳。","他喜歡看電影。"]},
+{s:"R",les:3,lv:1,img:"music",q:Q_IMG,o:["我週末喜歡聽音樂。","我週末喜歡看電影。","我週末喜歡打網球。"]},
+{s:"R",les:5,lv:1,img:"noodle:1",q:Q_IMG,o:["這是一碗牛肉麵。","這是一杯咖啡。","這是一支手機。"]},
 // ===== ĐỌC · mức 2
-{s:"R",les:1,lv:2,t:"「你是台灣人嗎？」",q:"哪一個回答最好？",o:["不是，我是日本人。","是，我不是台灣人。","我叫台灣人。"]},
-{s:"R",les:1,lv:2,t:"",q:"哪一句是對的？",o:["我也很喜歡喝茶。","我很也喜歡喝茶。","我喜歡也很喝茶。"]},
-{s:"R",les:1,lv:2,t:"「你要喝什麼？」",q:"哪一個回答最好？",o:["我要一杯烏龍茶。","我要一碗。","我喝很好。"]},
-{s:"R",les:2,lv:2,t:"「你有沒有弟弟？」",q:"哪一個回答最好？",o:["我沒有弟弟。","我不有弟弟。","我沒弟弟有。"]},
-{s:"R",les:2,lv:2,t:"",q:"哪一句是對的？",o:["這是誰的照片？","這是照片誰的？","誰是這的照片？"]},
-{s:"R",les:2,lv:2,t:"",q:"哪一句是對的？",o:["我家有四個人。","我家四個人有。","我有家四個人。"]},
-{s:"R",les:3,lv:2,t:"「你週末常做什麼？」",q:"哪一個回答最好？",o:["我常去游泳。","我常是學生。","週末很常。"]},
-{s:"R",les:3,lv:2,t:"",q:"哪一句是對的？",o:["我們一起去看電影吧。","我們去一起看電影吧。","一起我們看電影去吧。"]},
-{s:"R",les:3,lv:2,t:"「你喜歡什麼運動？」",q:"哪一個回答最好？",o:["我喜歡打網球。","我喜歡牛肉麵。","運動很好看。"]},
-{s:"R",les:4,lv:2,t:"「一共多少錢？」",q:"哪一個回答最好？",o:["一共兩百五十塊。","我要兩個。","很便宜的錢。"]},
-{s:"R",les:4,lv:2,t:"",q:"哪一句是對的？",o:["我要買一杯冰咖啡。","我要買冰一杯咖啡。","我要一杯買冰咖啡。"]},
-{s:"R",les:5,lv:2,t:"「這家餐廳的菜怎麼樣？」",q:"哪一個回答最好？",o:["很好吃，也不貴。","我在餐廳。","我要一碗菜。"]},
-{s:"R",les:5,lv:2,t:"",q:"哪一句是對的？",o:["這碗牛肉麵太辣了。","這碗牛肉麵太了辣。","這太辣碗牛肉麵了。"]},
+{s:"R",les:1,lv:2,t:"「你是臺灣人嗎？」",q:Q_REPLY,o:["不是，我是日本人。","是，我不是臺灣人。","我叫臺灣人。"]},
+{s:"R",les:1,lv:2,t:"",q:Q_GRAM,o:["我也很喜歡喝茶。","我很也喜歡喝茶。","我喜歡也很喝茶。"]},
+{s:"R",les:1,lv:2,t:"「你要喝什麼？」",q:Q_REPLY,o:["我要一杯烏龍茶。","我要一碗。","我喝很好。"]},
+{s:"R",les:2,lv:2,t:"「你有沒有妹妹？」",q:Q_REPLY,o:["我沒有妹妹。","我不有妹妹。","我沒妹妹有。"]},
+{s:"R",les:2,lv:2,t:"",q:Q_GRAM,o:["這是誰的照片？","這是照片誰的？","誰是這的照片？"]},
+{s:"R",les:2,lv:2,t:"",q:Q_GRAM,o:["我家有四個人。","我家四個人有。","我有家四個人。"]},
+{s:"R",les:3,lv:2,t:"「你週末常做什麼？」",q:Q_REPLY,o:["我常去游泳。","我常是週末。","週末很常。"]},
+{s:"R",les:3,lv:2,t:"",q:Q_GRAM,o:["我們一起去看電影吧。","我們去一起看電影吧。","一起我們看電影去吧。"]},
+{s:"R",les:3,lv:2,t:"「你喜歡什麼運動？」",q:Q_REPLY,o:["我喜歡打網球。","我喜歡牛肉麵。","運動很好看。"]},
+{s:"R",les:4,lv:2,t:"「一共多少錢？」",q:Q_REPLY,o:["一共兩百五十塊。","我要兩個。","很便宜的錢。"]},
+{s:"R",les:4,lv:2,t:"",q:Q_GRAM,o:["我要買一杯熱咖啡。","我要買熱一杯咖啡。","我要一杯買熱咖啡。"]},
+{s:"R",les:5,lv:2,t:"「這家餐廳的菜怎麼樣？」",q:Q_REPLY,o:["很好吃，也不貴。","我是餐廳。","我要一碗菜。"]},
+{s:"R",les:5,lv:2,t:"",q:Q_GRAM,o:["這碗牛肉麵太辣了。","這碗牛肉麵太了辣。","這太辣碗牛肉麵了。"]},
 // ĐỌC · mức 2 · nhìn hình chọn câu (cần đếm / đọc số)
-{s:"R",les:2,lv:2,img:"family:5",q:"看圖，選出對的句子。",o:["他家有五個人。","他家有四個人。","他家有三個人。"]},
-{s:"R",les:4,lv:2,img:"phonetag:$8,000",q:"看圖，選出對的句子。",o:["這個手機八千塊。","這個手機八百塊。","這個手機八萬塊。"]},
-{s:"R",les:4,lv:2,img:"coffee:2",q:"看圖，選出對的句子。",o:["這是兩杯熱咖啡。","這是兩杯冰咖啡。","這是一杯熱咖啡。"]},
-{s:"R",les:5,lv:2,img:"spicy",q:"看圖，選出對的句子。",o:["這碗牛肉麵很辣。","這碗牛肉麵很貴。","這杯咖啡很好喝。"]},
+{s:"R",les:2,lv:2,img:"family:5",q:Q_IMG,o:["他家有五個人。","他家有四個人。","他家有三個人。"]},
+{s:"R",les:4,lv:2,img:"phonetag:$8,000",q:Q_IMG,o:["這支手機八千塊。","這支手機八百塊。","這支手機八萬塊。"]},
+{s:"R",les:4,lv:2,img:"coffee:2",q:Q_IMG,o:["這是兩杯熱咖啡。","這是兩個包子。","這是一杯熱咖啡。"]},
+{s:"R",les:5,lv:2,img:"spicy",q:Q_IMG,o:["這碗牛肉麵很辣。","這碗牛肉麵很貴。","這杯咖啡很好喝。"]},
 // ===== ĐỌC · mức 3 (đoạn văn)
-{s:"R",les:1,lv:3,t:"我叫安德思，我是美國人。我很喜歡台灣，也很喜歡喝台灣的烏龍茶。我不喝咖啡。",q:"安德思喜歡喝什麼？",o:["烏龍茶","咖啡","都不喜歡"]},
-{s:"R",les:1,lv:3,t:"王先生是台灣人，李小姐是日本人。他們都喜歡喝咖啡。",q:"哪一個對？",o:["李小姐不是台灣人","王先生是日本人","他們都不喝咖啡"]},
-{s:"R",les:2,lv:3,t:"這是我家的照片。我家有六個人：爸爸、媽媽、兩個姐姐、一個弟弟和我。我沒有哥哥。",q:"「我」有幾個兄弟姐妹？",o:["三個","四個","六個"]},
-{s:"R",les:2,lv:3,t:"照片裡的這個人是我哥哥。他很帥，喜歡打籃球。那個人是我姐姐，她很漂亮，不喜歡運動。",q:"誰喜歡打籃球？",o:["哥哥","姐姐","「我」"]},
-{s:"R",les:3,lv:3,t:"我週末常去打網球，可是這個週末我想在家看電影，不想去打網球。",q:"這個週末他要做什麼？",o:["看電影","打網球","去朋友家"]},
-{s:"R",les:3,lv:3,t:"明華喜歡游泳，也喜歡打籃球。他不喜歡看電影，覺得電影沒有意思。",q:"明華不喜歡什麼？",o:["看電影","游泳","打籃球"]},
+{s:"R",les:1,lv:3,t:"我叫王開文，我是美國人。我很喜歡臺灣，也很喜歡喝臺灣的烏龍茶。我不喝咖啡。",q:"開文喜歡喝什麼？",o:["烏龍茶","咖啡","都不喜歡"]},
+{s:"R",les:1,lv:3,t:"王先生是臺灣人，李小姐是日本人。他們都喜歡喝咖啡。",q:Q_TRUE,o:["李小姐不是臺灣人","王先生是日本人","他們都不喝咖啡"]},
+{s:"R",les:2,lv:3,t:"這是我家的照片。我家有六個人：爸爸、媽媽、兩個姐姐、一個妹妹和我。我沒有哥哥。",q:"「我」有幾個兄弟姐妹？",o:["三個","四個","六個"]},
+{s:"R",les:2,lv:3,t:"這是我哥哥的照片。我哥哥很喜歡打籃球。這是我姐姐，我姐姐很漂亮，可是不喜歡運動。",q:"誰喜歡打籃球？",o:["哥哥","姐姐","「我」"]},
+{s:"R",les:3,lv:3,t:"我週末常去打網球，可是這個週末我想去看電影，不想去打網球。",q:"這個週末他要做什麼？",o:["看電影","打網球","游泳"]},
+{s:"R",les:3,lv:3,t:"明華喜歡游泳，也喜歡打籃球。他不喜歡看電影，覺得電影不好看。",q:"明華不喜歡什麼？",o:["看電影","游泳","打籃球"]},
 {s:"R",les:4,lv:3,t:"這家店的咖啡，小杯五十塊，大杯七十塊。我要買一杯大杯的和一杯小杯的。",q:"一共多少錢？",o:["一百二十塊","一百塊","一百四十塊"]},
-{s:"R",les:4,lv:3,t:"新手機兩萬塊，太貴了。舊手機九千塊，很便宜，可是不好看。",q:"哪一個對？",o:["新手機很貴","舊手機很好看","舊手機兩萬塊"]},
-{s:"R",les:5,lv:3,t:"這家餐廳的牛肉麵很有名，可是太辣了。我不喜歡吃辣的，我常吃他們的牛肉湯。",q:"他為什麼不常吃這家的牛肉麵？",o:["太辣了","太貴了","不有名"]},
-{s:"R",les:5,lv:3,t:"我和朋友去吃飯。我要一碗牛肉麵，朋友要兩碗。一碗一百五十塊。",q:"他們一共要給多少錢？",o:["四百五十塊","三百塊","一百五十塊"]},
+{s:"R",les:4,lv:3,t:"新手機兩萬塊，太貴了。舊手機九千塊，很便宜，可是不好看。",q:Q_TRUE,o:["新手機很貴","舊手機很好看","舊手機兩萬塊"]},
+{s:"R",les:5,lv:3,t:"這家餐廳的牛肉麵很有名，可是太辣了。我不喜歡吃辣的，我常吃他們的牛肉湯。",q:"「我」常吃什麼？",o:["牛肉湯","牛肉麵","包子"]},
+{s:"R",les:5,lv:3,t:"我和哥哥去吃牛肉麵。我要一碗，哥哥要兩碗。一碗一百五十塊。",q:"一共多少錢？",o:["四百五十塊","三百塊","一百五十塊"]},
 // ĐỌC · mức 3 · tự giới thiệu & sở thích (g = cùng đoạn, mỗi bài chỉ ra 1 câu)
-{s:"R",les:2,lv:3,g:"p1",t:"大家好！我叫阮美玲，我是越南人。我家有五個人：爸爸、媽媽、一個哥哥、一個妹妹和我。我喜歡喝咖啡，也喜歡聽音樂。週末我常跟朋友去看電影。",q:"美玲有幾個兄弟姐妹？",o:["兩個","三個","五個"]},
-{s:"R",les:3,lv:3,g:"p1",t:"大家好！我叫阮美玲，我是越南人。我家有五個人：爸爸、媽媽、一個哥哥、一個妹妹和我。我喜歡喝咖啡，也喜歡聽音樂。週末我常跟朋友去看電影。",q:"美玲週末常做什麼？",o:["看電影","聽音樂","喝咖啡"]},
-{s:"R",les:3,lv:3,g:"p2",t:"我姓林，叫林大衛，我是美國人。我很喜歡台灣的牛肉麵，可是我不喜歡吃辣的。週末我喜歡打網球，不喜歡游泳。",q:"大衛週末喜歡做什麼？",o:["打網球","游泳","吃牛肉麵"]},
-{s:"R",les:5,lv:3,g:"p2",t:"我姓林，叫林大衛，我是美國人。我很喜歡台灣的牛肉麵，可是我不喜歡吃辣的。週末我喜歡打網球，不喜歡游泳。",q:"哪一個對？",o:["大衛不喜歡吃辣的","大衛是台灣人","大衛喜歡游泳"]},
+{s:"R",les:2,lv:3,g:"p1",t:"你們好！我叫阮美玲，我是越南人。我家有五個人：爸爸、媽媽、一個哥哥、一個妹妹和我。我喜歡喝咖啡，也喜歡聽音樂。週末我常和妹妹去看電影。",q:"美玲有幾個兄弟姐妹？",o:["兩個","三個","五個"]},
+{s:"R",les:3,lv:3,g:"p1",t:"你們好！我叫阮美玲，我是越南人。我家有五個人：爸爸、媽媽、一個哥哥、一個妹妹和我。我喜歡喝咖啡，也喜歡聽音樂。週末我常和妹妹去看電影。",q:"美玲週末常做什麼？",o:["看電影","聽音樂","喝咖啡"]},
+{s:"R",les:3,lv:3,g:"p2",t:"我姓林，叫林大衛，我是美國人。我很喜歡臺灣的牛肉麵，可是我不喜歡吃辣的。週末我喜歡打網球，不喜歡游泳。",q:"大衛週末喜歡做什麼？",o:["打網球","游泳","吃牛肉麵"]},
+{s:"R",les:5,lv:3,g:"p2",t:"我姓林，叫林大衛，我是美國人。我很喜歡臺灣的牛肉麵，可是我不喜歡吃辣的。週末我喜歡打網球，不喜歡游泳。",q:Q_TRUE,o:["大衛不喜歡吃辣的","大衛是臺灣人","大衛喜歡游泳"]},
 {s:"R",les:3,lv:3,g:"p3",t:"我哥哥很喜歡運動。他常打籃球，也常游泳。我不喜歡運動，我喜歡看電影。我們都喜歡聽音樂。",q:"誰喜歡看電影？",o:["「我」","哥哥","他們都喜歡"]},
 {s:"R",les:3,lv:3,g:"p3",t:"我哥哥很喜歡運動。他常打籃球，也常游泳。我不喜歡運動，我喜歡看電影。我們都喜歡聽音樂。",q:"他們都喜歡什麼？",o:["聽音樂","打籃球","看電影"]},
-{s:"R",les:1,lv:3,g:"p4",t:"你們好，我叫山田，我是日本人。我家有四個人。我爸爸是老師，媽媽也是老師。我有一個姐姐，她很漂亮。",q:"山田的媽媽做什麼？",o:["她是老師","她是學生","她不是老師"]},
-{s:"R",les:2,lv:3,g:"p4",t:"你們好，我叫山田，我是日本人。我家有四個人。我爸爸是老師，媽媽也是老師。我有一個姐姐，她很漂亮。",q:"山田有沒有哥哥？",o:["沒有","有一個","有兩個"]},
-{s:"R",les:4,lv:3,t:"這家店的手機都很貴。新的兩萬五千塊，舊的一萬塊。我想買便宜的。",q:"他想買哪一個？",o:["一萬塊的","兩萬五千塊的","都不想買"]},
-{s:"R",les:5,lv:3,t:"這家小吃店的牛肉麵很有名。一碗一百二十塊，不貴。我很喜歡吃，週末常跟朋友來吃。",q:"「我」覺得這家的牛肉麵怎麼樣？",o:["好吃，也不貴","很貴","不好吃"]},
-{s:"R",les:3,lv:3,t:"明華：這個週末我們一起去看電影，好不好？\n安娜：好啊！可是我明天早上要打網球，我們晚上去，怎麼樣？",q:"他們什麼時候去看電影？",o:["明天晚上","明天早上","今天晚上"]},
+{s:"R",les:1,lv:3,g:"p4",t:"你們好，我叫山田，我是日本人。我家有四個人。我爸爸是老師，媽媽也是老師。我有一個姐姐，我姐姐很漂亮。",q:Q_TRUE,o:["山田的媽媽是老師","山田的媽媽不是老師","山田家有五個人"]},
+{s:"R",les:2,lv:3,g:"p4",t:"你們好，我叫山田，我是日本人。我家有四個人。我爸爸是老師，媽媽也是老師。我有一個姐姐，我姐姐很漂亮。",q:"山田有沒有哥哥？",o:["沒有","有一個","有兩個"]},
+{s:"R",les:4,lv:3,t:"這家店的手機都很貴。新的兩萬五千塊，舊的一萬塊。我想買便宜的。",q:"他想買哪一支？",o:["一萬塊的","兩萬五千塊的","都不想買"]},
+{s:"R",les:5,lv:3,t:"這家店的牛肉麵很有名。一碗一百二十塊，不貴。我很喜歡吃，週末常和姐姐來吃。",q:"「我」覺得這家的牛肉麵怎麼樣？",o:["好吃，也不貴","很貴","不好吃"]},
+{s:"R",les:3,lv:3,t:"明華：如玉，這個週末我們一起去看電影，好不好？\n如玉：好啊！可是我明天早上要打網球，我們晚上去，怎麼樣？",q:"如玉明天早上要做什麼？",o:["打網球","看電影","吃晚飯"]},
 ].map((x,i)=>({...x,id:i,k:0}));
 
 /* ---------- trạng thái ---------- */
@@ -291,10 +309,12 @@ const synth=window.speechSynthesis||null;let voice=null;
 function pickVoice(){if(!synth)return;const v=synth.getVoices();
   voice=v.find(x=>/zh[-_]TW/i.test(x.lang))||v.find(x=>/zh[-_](HK|Hant)/i.test(x.lang))||v.find(x=>/^zh|cmn/i.test(x.lang))||null}
 if(synth){pickVoice();synth.onvoiceschanged=pickVoice}
+const FEMALE=new Set(["月美","怡君","如玉","秋香"]);
+const cast=a=>{const n=[...new Set(a.map(x=>x[0]).filter(Boolean))];return n.length?`<p class="cast">Nhân vật: ${n.map(x=>`<b class="zht">${x}</b> (${FEMALE.has(x)?"nữ":"nam"})`).join(" · ")}</p>`:""};
 function speak(lines,done){if(!synth){done&&done();return}synth.cancel();
   lines.forEach(([sp,txt],i)=>{const u=new SpeechSynthesisUtterance(txt);
     u.lang=voice?voice.lang:"zh-TW";if(voice)u.voice=voice;u.rate=.85;
-    u.pitch=sp==="女"?1.3:sp==="男"?.75:1;
+    u.pitch=FEMALE.has(sp)?1.35:sp==="老闆"?1:sp?.72:1;
     if(i===lines.length-1)u.onend=()=>done&&done();synth.speak(u)})}
 
 /* ---------- màn hình ---------- */
@@ -346,10 +366,11 @@ function render(){const st=S.secs[S.sec],it=S.cur.item,n=st.hist.length+1,N=LEN[
      <span class="meter">${meter(st.level)} độ khó ${st.level}/3</span></div>
    ${listen?`<div class="play"><button class="ghost" id="pl">▶ Nghe (còn <span id="left">2</span> lần)</button>
       ${!synth||!voice?`<span class="notice">Thiết bị này chưa có giọng đọc tiếng Trung. Hãy thử Chrome hoặc Safari, hoặc nhờ giáo viên đọc. <button class="ghost" id="tr" style="padding:4px 10px;margin-left:4px">Hiện lời thoại</button></span>`:""}</div>
+      ${cast(it.a)}
       <div class="transcript" id="tx" hidden>${it.a.map(([s,t])=>`${s?s+"：":""}${esc(t)}`).join("<br>")}</div>`:""}
    ${it.img?`<div class="figure">${pic(it.img,"Hình minh họa")}</div>`:""}
    ${!listen&&it.t?`<div class="passage">${esc(it.t).replace(/\n/g,"<br>")}</div>`:""}
-   <p class="q">${esc(it.q)}</p>
+   <p class="q${/[a-zA-Zà-ỹÀ-Ỹ]/.test(it.q)?" qv":""}">${esc(it.q)}</p>
    ${opts}
    <div class="row"><button class="primary" id="nx" disabled>${n===N?"Hoàn thành phần này":"Câu tiếp theo"}</button></div>
   </section>`;
@@ -388,10 +409,11 @@ function results(){if(timer){clearInterval(timer);timer=null}
   const used=Math.round((Date.now()-(S.deadline-MINUTES*60000))/60000);
   stepEl.textContent="Kết quả";
   const all=[...S.secs.L.hist,...S.secs.R.hist];
+  const pL=secPoints(S.secs.L.hist),pR=secPoints(S.secs.R.hist),total=pL+pR,[,gName,gAdv]=grade(total);
   const sec=k=>{const st=S.secs[k],c=st.hist.filter(h=>h.ok).length;
     return `<div class="card"><span class="label">${k==="L"?"聽力 Nghe":"閱讀 Đọc"}</span>
-     <div class="row"><span class="big">${c}/${LEN[k]}</span><span class="pill">${st.hist.length?LEVELS[st.level]:"Chưa làm"}</span></div>
-     ${st.hist.length<LEN[k]?`<p class="muted" style="font-size:13px">Đã làm ${st.hist.length}/${LEN[k]} câu.</p>`:""}
+     <div class="row"><span class="big">${k==="L"?pL:pR}<small class="muted" style="font-size:16px">/50</small></span><span class="pill">${secLevel(st.hist)}</span></div>
+     <p class="muted" style="font-size:13px">Đúng ${c}/${LEN[k]} câu${st.hist.length<LEN[k]?` · mới làm ${st.hist.length}/${LEN[k]} câu`:""}</p>
      ${trace(st.hist,LEN[k])}
      <p class="muted" style="font-size:13px">Chấm xanh: đúng · vòng đỏ: sai · trục dọc: độ khó của câu.</p></div>`};
   const rows=[1,2,3,4,5].map(l=>{const h=all.filter(x=>x.item.les===l),c=h.filter(x=>x.ok).length,p=h.length?Math.round(c/h.length*100):0;
@@ -405,22 +427,33 @@ function results(){if(timer){clearInterval(timer);timer=null}
   app.innerHTML=`<div style="display:flex;flex-direction:column;gap:16px">
    <section class="card"><span class="label">Kết quả${S.timeUp?" · Hết giờ":""}</span>
     <h1>${S.name?esc(S.name):"Học viên"}</h1>
+    <div class="row" style="align-items:baseline;gap:14px"><span class="big" style="font-size:44px">${total}<small class="muted" style="font-size:18px">/100</small></span>
+      <span class="pill" style="font-size:14px">${gName}</span></div>
+    <p><b>Đề xuất:</b> ${gAdv}</p>
     <p class="muted">${new Date().toLocaleString("vi-VN")} · Thời gian làm: ${Math.min(used,MINUTES)} phút</p><p id="sendst" class="muted">${SHEET_URL?"Đang gửi kết quả cho giáo viên…":"Chụp màn hình này gửi giáo viên."}</p></section>
    <div class="stats">${sec("L")}${sec("R")}</div>
    <section class="card"><h2>Theo từng bài</h2>
     <div class="tbl"><table><thead><tr><th>Bài</th><th>Chủ đề</th><th>Đúng</th><th>Tỉ lệ</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="muted" style="font-size:13px">Số câu mỗi bài khác nhau vì đề tự chọn câu theo trình độ.</p>
+    <details><summary>Cách tính điểm</summary><div class="rev"><div>
+      Mỗi phần Nghe, Đọc tối đa <b>50 điểm</b>, cộng lại tối đa <b>100</b>. Điểm không đếm số câu đúng đơn thuần mà ước lượng trình độ từ việc
+      bạn làm đúng câu ở độ khó nào: đúng câu khó (mức 3) được tính nhiều hơn câu dễ (mức 1).
+      Xếp loại: ≥80 Giỏi · 65–79 Khá · 50–64 Trung bình · dưới 50 Yếu.</div></div></details>
     <details><summary>Xem lại từng câu</summary><div class="rev">${rev}</div></details></section>
    <div class="row"><button class="ghost" id="again">Làm lại từ đầu</button></div></div>`;
   document.getElementById("again").onclick=()=>{reset();intro()};
-  sendResult(all,Math.min(used,MINUTES))}
+  sendResult(all,Math.min(used,MINUTES),{pL,pR,total,gName,gAdv})}
 
-function sendResult(all,minutes){if(!SHEET_URL||S.sent)return;S.sent=true;
-  const sc=k=>`${S.secs[k].hist.filter(h=>h.ok).length}/${LEN[k]}`,lv=k=>S.secs[k].hist.length?LEVELS[S.secs[k].level]:"Chưa làm";
+function sendResult(all,minutes,sc){if(!SHEET_URL||S.sent)return;S.sent=true;
+  const right=k=>`${S.secs[k].hist.filter(h=>h.ok).length}/${LEN[k]}`;
   const les=l=>{const h=all.filter(x=>x.item.les===l);return `${h.filter(x=>x.ok).length}/${h.length}`};
   const wrong=all.filter(h=>!h.ok).map(h=>`${h.item.s==="L"?"Nghe":"Đọc"} L${h.item.les}: ${h.item.q} → chọn ${optText(h.item,h.chosen)} (đúng: ${optText(h.item,h.item.k)})`).join("\n");
-  const d={name:S.name||"(không tên)",lScore:sc("L"),lLevel:lv("L"),rScore:sc("R"),rLevel:lv("R"),
-    l1:les(1),l2:les(2),l3:les(3),l4:les(4),l5:les(5),minutes,timeUp:S.timeUp,wrong};
+  // [tên cột, giá trị]: muốn thêm/bớt cột chỉ cần sửa ở đây, Apps Script tự tạo tiêu đề
+  const d={sheet:"Bảng điểm",cols:[["Họ tên",S.name||"(không tên)"],["Tổng điểm /100",sc.total],["Xếp loại",sc.gName],["Đề xuất",sc.gAdv],
+    ["Nghe /50",sc.pL],["Mức Nghe",secLevel(S.secs.L.hist)],["Nghe đúng",right("L")],
+    ["Đọc /50",sc.pR],["Mức Đọc",secLevel(S.secs.R.hist)],["Đọc đúng",right("R")],
+    ["L1",les(1)],["L2",les(2)],["L3",les(3)],["L4",les(4)],["L5",les(5)],
+    ["Số phút làm",minutes],["Hết giờ?",S.timeUp?"Có":"Không"],["Các câu sai",wrong]]};
   const st=document.getElementById("sendst");
   fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(d)})
     .then(()=>{if(st)st.textContent="✓ Đã gửi kết quả cho giáo viên."})
