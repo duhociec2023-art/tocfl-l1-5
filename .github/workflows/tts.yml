@@ -19,7 +19,7 @@ jobs:
       - name: Cai cong cu
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-          pip install -q edge-tts==7.0.2
+          pip install -q edge-tts==7.2.8
       - name: Tao file am thanh
         run: |
           cat > gen.py <<'PY'
@@ -42,7 +42,7 @@ jobs:
                   try:
                       await edge_tts.Communicate(txt,v,rate="-15%",pitch=p).save(out); return
                   except Exception as e:
-                      print("retry",i,e); await asyncio.sleep(3)
+                      print("retry",i,type(e).__name__,e,flush=True); await asyncio.sleep(5*(i+1))
               raise SystemExit("TTS failed: "+txt)
           async def main():
               os.makedirs("audio",exist_ok=True); os.makedirs("tmp",exist_ok=True)
