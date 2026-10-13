@@ -305,31 +305,16 @@ function tick(){const ms=Math.max(0,S.deadline-Date.now()),m=Math.floor(ms/60000
   if(ms<=0){S.timeUp=true;if(synth)synth.cancel();results()}}
 
 /* ---------- giọng đọc ---------- */
-/* Giọng đọc: lấy từ máy học sinh. Nữ → giọng nữ; nam → giọng nam nếu máy có, không thì giọng nữ hạ tông.
-   Bỏ giọng zh-HK (đọc tiếng Quảng Đông). Ưu tiên zh-TW, sau đó tiếng Phổ thông zh-CN. */
-const synth=window.speechSynthesis||null;let voice=null,voiceF=null,voiceM=null;
-const MALE_RE=/zhiwei|yunjhe|kangkang|yunxi|yunjian|yunyang|yunze|yunhao|li-?mu|male|男/i;
-const FEMALE_RE=/hanhan|yating|hsiaochen|hsiaoyu|mei-?jia|huihui|yaoyao|xiaoxiao|xiaoyi|ting-?ting|lili|female|女|google/i;
-function pickVoice(){if(!synth)return;
-  const all=synth.getVoices().filter(x=>/^(zh|cmn)/i.test(x.lang)&&!/HK|yue|Cantonese/i.test(x.lang+x.name));
-  const tw=all.filter(x=>/TW|Hant/i.test(x.lang)),cn=all.filter(x=>!/TW|Hant/i.test(x.lang));
-  const isM=x=>MALE_RE.test(x.name),isF=x=>!isM(x)&&FEMALE_RE.test(x.name);
-  const nat=a=>a.slice().sort((x,y)=>(/natural|online/i.test(y.name)?1:0)-(/natural|online/i.test(x.name)?1:0));
-  voiceF=nat(tw).find(isF)||nat(tw).find(x=>!isM(x))||nat(cn).find(isF)||tw[0]||cn[0]||null;
-  voiceM=nat(tw).find(isM)||nat(cn).find(isM)||null;
-  voice=voiceF||voiceM;
-  const el=document.getElementById("voiceinfo");if(el)el.innerHTML=voiceInfo()}
-function voiceInfo(){if(!synth||!voice)return "Thiết bị này chưa có giọng đọc tiếng Trung. Hãy dùng máy tính Windows với Edge hoặc Chrome.";
-  return `Giọng nữ: <b>${voiceF?voiceF.name:"không có"}</b> · Giọng nam: <b>${voiceM?voiceM.name:"không có (dùng giọng nữ hạ tông)"}</b>`}
+const synth=window.speechSynthesis||null;let voice=null;
+function pickVoice(){if(!synth)return;const v=synth.getVoices();
+  voice=v.find(x=>/zh[-_]TW/i.test(x.lang))||v.find(x=>/zh[-_](HK|Hant)/i.test(x.lang))||v.find(x=>/^zh|cmn/i.test(x.lang))||null}
 if(synth){pickVoice();synth.onvoiceschanged=pickVoice}
 const FEMALE=new Set(["月美","怡君","如玉","秋香"]);
 const cast=a=>{const n=[...new Set(a.map(x=>x[0]).filter(Boolean))];return n.length?`<p class="cast">Nhân vật: ${n.map(x=>`<b class="zht">${x}</b> (${FEMALE.has(x)?"nữ":"nam"})`).join(" · ")}</p>`:""};
 function speak(lines,done){if(!synth){done&&done();return}synth.cancel();
   lines.forEach(([sp,txt],i)=>{const u=new SpeechSynthesisUtterance(txt);
-    const male=sp&&!FEMALE.has(sp),v=male?(voiceM||voiceF):(voiceF||voiceM);
-    if(v){u.voice=v;u.lang=v.lang}else u.lang="zh-TW";u.rate=.85;
-    // có giọng nam thật thì giữ tông tự nhiên; không có thì hạ tông giọng nữ
-    u.pitch=male?(voiceM?(sp==="老闆"?.9:1):.7):1.1;
+    u.lang=voice?voice.lang:"zh-TW";if(voice)u.voice=voice;u.rate=.85;
+    u.pitch=FEMALE.has(sp)?1.35:sp==="老闆"?1:sp?.72:1;
     if(i===lines.length-1)u.onend=()=>done&&done();synth.speak(u)})}
 
 /* ---------- màn hình ---------- */
@@ -344,8 +329,7 @@ app.innerHTML=`<section class="card">
     <li>Hai phần: <b>Nghe</b> (${LEN.L} câu) rồi <b>Đọc</b> (${LEN.R} câu). Có câu chọn hình, câu chọn đáp án và đoạn văn ngắn.</li>
     <li>Đề tự đổi độ khó theo bạn: đúng 2 câu liền thì câu sau khó hơn, sai thì câu sau dễ hơn.</li>
     <li>Không quay lại câu trước được. Mỗi câu nghe được phát tối đa 2 lần.</li>
-    <li>Phần Nghe cần bật loa hoặc đeo tai nghe. Nên dùng <b>máy tính Windows với Edge hoặc Chrome</b> để có đủ giọng nam và giọng nữ.</li>
-    <li class="muted" id="voiceinfo" style="font-size:13px">${voiceInfo()}</li>
+    <li>Phần Nghe cần bật loa hoặc đeo tai nghe.</li>
   </ul>
   <label class="label" for="nm">Họ tên học viên</label>
   <input type="text" id="nm" placeholder="Ví dụ: Nguyễn Văn An" autocomplete="name">
